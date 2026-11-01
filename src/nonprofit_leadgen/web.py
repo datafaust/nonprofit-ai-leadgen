@@ -10,6 +10,8 @@ from .normalize import BOROUGHS
 
 PAGE_SIZE = 50
 MAX_QUERY_LENGTH = 100
+WEBSITE_EMAIL_EXISTS = """EXISTS (SELECT 1 FROM website_emails e
+    WHERE e.organization_id=o.organization_id AND e.claimed_url=o.website)"""
 
 
 def _connect_read_only(path: Path):
@@ -52,6 +54,9 @@ def create_app(db_path="data/nonprofits.db"):
         website_status = request.args.get("website_status", "", type=str).strip()
         if website_status not in ("", "reachable"):
             abort(400)
+        email_status = request.args.get("email_status", "", type=str).strip()
+        if email_status not in ("", "with_email", "without_email"):
+            abort(400)
         page = request.args.get("page", 1, type=int)
         if page < 1 or page > 100_000:
             abort(400)
@@ -68,6 +73,10 @@ def create_app(db_path="data/nonprofits.db"):
                               WHERE w.organization_id=o.organization_id AND w.claimed_url=o.website
                               ORDER BY w.check_id DESC LIMIT 1) = ?""")
             params.append("reachable")
+        if email_status == "with_email":
+            filters.append(WEBSITE_EMAIL_EXISTS)
+        elif email_status == "without_email":
+            filters.append("NOT " + WEBSITE_EMAIL_EXISTS)
         where = " WHERE " + " AND ".join(filters) if filters else ""
         with closing(_connect_read_only(path)) as db:
             total = db.execute("SELECT COUNT(*) FROM organizations o" + where, params).fetchone()[0]
@@ -76,11 +85,12 @@ def create_app(db_path="data/nonprofits.db"):
                 abort(404)
             rows = db.execute(
                 "SELECT o.organization_id, o.name, o.borough, o.category, o.website, o.phone, o.contact_verification_status, "
-                "(SELECT w.status FROM website_checks w WHERE w.organization_id=o.organization_id AND w.claimed_url=o.website ORDER BY w.check_id DESC LIMIT 1) AS website_status "
+                "(SELECT w.status FROM website_checks w WHERE w.organization_id=o.organization_id AND w.claimed_url=o.website ORDER BY w.check_id DESC LIMIT 1) AS website_status, "
+                + WEBSITE_EMAIL_EXISTS + " AS has_website_email "
                 "FROM organizations o" + where + " ORDER BY o.name COLLATE NOCASE, o.organization_id LIMIT ? OFFSET ?",
                 (*params, PAGE_SIZE, (page - 1) * PAGE_SIZE),
             ).fetchall()
-        return render_template("leads.html", leads=rows, total=total, page=page, pages=pages, q=query, borough=borough, boroughs=BOROUGHS.values(), website_status=website_status)
+        return render_template("leads.html", leads=rows, total=total, page=page, pages=pages, q=query, borough=borough, boroughs=BOROUGHS.values(), website_status=website_status, email_status=email_status)
 
     @app.get("/leads/<lead_id>")
     def detail(lead_id):
@@ -97,6 +107,9 @@ def create_app(db_path="data/nonprofits.db"):
             checks = db.execute("""SELECT claimed_url, checked_at, status, final_url, http_status, error_type
                                    FROM website_checks WHERE organization_id=? AND claimed_url=?
                                    ORDER BY check_id DESC LIMIT 5""", (lead_id, lead["website"])).fetchall()
-        return render_template("detail.html", lead=lead, sources=sources, checks=checks)
+            website_emails = db.execute("""SELECT email, source_url, discovered_at, verification_status
+                FROM website_emails WHERE organization_id=? AND claimed_url=? ORDER BY email""",
+                (lead_id, lead["website"])).fetchall()
+        return render_template("detail.html", lead=lead, sources=sources, checks=checks, website_emails=website_emails)
 
     return app

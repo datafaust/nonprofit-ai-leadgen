@@ -70,6 +70,7 @@ def test_invalid_query_and_missing_database(app, tmp_path):
     assert client.get("/?q=" + "a" * 101).status_code == 400
     assert client.get("/?page=0").status_code == 400
     assert client.get("/?page=3").status_code == 404
+    assert client.get("/?email_status=unknown").status_code == 400
     with pytest.raises(FileNotFoundError):
         create_app(tmp_path / "missing.db")
 
@@ -145,5 +146,58 @@ def test_reachable_filter_pagination_retains_selection(app):
     assert first.data.count(b'class="lead-link"') == 50
     assert b"website_status=reachable" in first.data
     second = client.get("/?website_status=reachable&page=2")
+    assert second.status_code == 200
+    assert second.data.count(b'class="lead-link"') == 5
+
+
+def test_website_email_flag_and_filter_use_current_claim(app):
+    import sqlite3
+
+    with sqlite3.connect(app.config["TEST_DB_PATH"]) as db:
+        db.execute("UPDATE organizations SET website='https://other.org' WHERE organization_id='lead-1'")
+        db.execute("UPDATE organizations SET website='https://new.org' WHERE organization_id='lead-2'")
+        db.executemany("""INSERT INTO website_emails
+            (organization_id, claimed_url, email, source_url, discovered_at, extraction_method)
+            VALUES (?, ?, ?, ?, '2026-01-01', 'html_text_or_mailto')""", [
+            ("lead-0", "https://example.org", "info@example.org", "https://example.org/contact"),
+            ("lead-0", "https://example.org", "hello@example.org", "https://example.org/contact"),
+            ("lead-1", "https://other.org", "contact@other.org", "https://other.org/contact"),
+            ("lead-2", "https://old.org", "info@old.org", "https://old.org/contact"),
+        ])
+        db.execute("""INSERT INTO website_checks (organization_id, claimed_url, checked_at, status)
+            VALUES ('lead-1', 'https://other.org', '2026-01-01', 'reachable')""")
+    client = app.test_client()
+    all_leads = client.get("/")
+    assert b"Website email" in all_leads.data
+    assert all_leads.data.count(b">Found</span>") == 2
+    with_email = client.get("/?email_status=with_email")
+    assert b"2</strong>" in with_email.data
+    assert with_email.data.count(b'class="lead-link"') == 2
+    assert b"Example Aid 02" not in with_email.data
+    assert b'option value="with_email" selected' in with_email.data
+    without_email = client.get("/?email_status=without_email")
+    assert b"53</strong>" in without_email.data
+    assert b"Example Aid 02" in without_email.data
+    combined = client.get("/?email_status=with_email&website_status=reachable&borough=Queens")
+    assert b"1</strong>" in combined.data
+    assert b"Example Aid 01" in combined.data
+
+
+def test_website_email_filter_pagination_retains_selection(app):
+    import sqlite3
+
+    with sqlite3.connect(app.config["TEST_DB_PATH"]) as db:
+        for n in range(55):
+            url = f"https://example-{n}.org"
+            db.execute("UPDATE organizations SET website=? WHERE organization_id=?", (url, f"lead-{n}"))
+            db.execute("""INSERT INTO website_emails
+                (organization_id, claimed_url, email, source_url, discovered_at, extraction_method)
+                VALUES (?, ?, ?, ?, '2026-01-01', 'html_text_or_mailto')""",
+                (f"lead-{n}", url, f"info@example-{n}.org", url))
+    client = app.test_client()
+    first = client.get("/?email_status=with_email")
+    assert first.data.count(b'class="lead-link"') == 50
+    assert b"email_status=with_email" in first.data
+    second = client.get("/?email_status=with_email&page=2")
     assert second.status_code == 200
     assert second.data.count(b'class="lead-link"') == 5

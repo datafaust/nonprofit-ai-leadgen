@@ -34,9 +34,26 @@ def connect(path="data/nonprofits.db"):
       status TEXT NOT NULL, final_url TEXT, http_status INTEGER,
       error_type TEXT
     );
+    CREATE TABLE IF NOT EXISTS website_email_scans (
+      scan_id INTEGER PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(organization_id),
+      claimed_url TEXT NOT NULL, scanned_at TEXT NOT NULL,
+      status TEXT NOT NULL, pages_visited INTEGER NOT NULL,
+      emails_found INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS website_emails (
+      organization_id TEXT NOT NULL REFERENCES organizations(organization_id),
+      claimed_url TEXT NOT NULL, email TEXT NOT NULL,
+      source_url TEXT NOT NULL, discovered_at TEXT NOT NULL,
+      extraction_method TEXT NOT NULL,
+      verification_status TEXT NOT NULL DEFAULT 'unverified',
+      PRIMARY KEY (organization_id, claimed_url, email)
+    );
     CREATE INDEX IF NOT EXISTS idx_source_org ON source_records(organization_id);
     CREATE INDEX IF NOT EXISTS idx_org_borough ON organizations(borough);
     CREATE INDEX IF NOT EXISTS idx_website_checks ON website_checks(organization_id, claimed_url, check_id DESC);
+    CREATE INDEX IF NOT EXISTS idx_email_scans ON website_email_scans(organization_id, claimed_url, scan_id DESC);
+    CREATE INDEX IF NOT EXISTS idx_website_emails_org ON website_emails(organization_id, claimed_url);
     """)
     # Add the source claim to databases created before website checking existed.
     columns = {row[1] for row in db.execute("PRAGMA table_info(source_records)")}
