@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.name }}{% endblock %}
+{% block content %}
+<div class="back-row"><a href="{{ url_for('index') }}">← All leads</a></div>
+<section class="detail-header"><p class="eyebrow">Organization detail</p><h1>{{ lead.name }}</h1><p class="subtle">{{ lead.category or 'Category not listed' }}{% if lead.borough %} · {{ lead.borough }}{% endif %}</p></section>
+<div class="detail-grid">
+  <div class="main-column">
+    <section class="panel"><h2>About</h2><p class="description">{{ lead.description or 'No description provided by the source.' }}</p></section>
+    <section class="panel"><h2>Source records</h2><p class="hint">These are dataset claims, not independent verification.</p>
+      {% for source in sources %}<div class="source-record"><strong>{{ source.source|replace('_', ' ')|title }}</strong><dl><dt>Record ID</dt><dd>{{ source.source_record_id }}</dd><dt>Claimed website</dt><dd>{{ source.claimed_website or 'Not listed' }}</dd><dt>Source page</dt><dd>{{ source.source_url }}</dd><dt>Imported</dt><dd>{{ source.extracted_at[:10] }}</dd><dt>Method</dt><dd>{{ source.extraction_method }}</dd></dl></div>{% endfor %}
+    </section>
+  </div>
+  <div class="side-column">
+    <section class="panel"><h2>Contact &amp; location</h2><dl class="facts"><dt>Website</dt><dd class="break-word">{{ lead.website or 'Not listed' }}</dd><dt>Email</dt><dd>{{ lead.email or 'Not listed' }}</dd><dt>Phone</dt><dd>{{ lead.phone or 'Not listed' }}</dd><dt>Address</dt><dd>{{ lead.street_address or 'Not listed' }}{% if lead.city %}<br>{{ lead.city }}{% endif %}{% if lead.state %}, {{ lead.state }}{% endif %}{% if lead.zip_code %} {{ lead.zip_code }}{% endif %}</dd><dt>Verification</dt><dd>{{ 'Source-reported; not verified' if lead.contact_verification_status == 'source_reported' else 'No contact listed' }}</dd></dl></section>
+    <section class="panel"><h2>Website checks</h2><p class="hint">Reachability does not verify organization identity or nonprofit status.</p>{% for check in checks %}<div class="source-record"><strong>{{ check.status|replace('_', ' ')|title }}</strong><dl><dt>Checked</dt><dd>{{ check.checked_at[:16] }}</dd><dt>HTTP</dt><dd>{{ check.http_status or '—' }}</dd><dt>Reason</dt><dd>{{ check.error_type or '—' }}</dd><dt>Final URL</dt><dd>{{ check.final_url or '—' }}</dd></dl></div>{% else %}<p class="hint">Not checked yet.</p>{% endfor %}</section>
+    <section class="panel action-panel"><h2>Outreach</h2><p class="hint">Review the organization and contact details before drafting outreach.</p><button type="button" disabled>Generate email · coming later</button></section>
+  </div>
+</div>
+{% endblock %}

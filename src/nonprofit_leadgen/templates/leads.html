@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Leads{% endblock %}
+{% block content %}
+<section class="page-intro">
+  <div><p class="eyebrow">NYC nonprofit research</p><h1>Leads</h1><p class="subtle">Browse the organizations in your local database.</p></div>
+  <div class="count-card"><strong>{{ total }}</strong><span>matching organizations</span></div>
+</section>
+<form class="filters" method="get" action="{{ url_for('index') }}">
+  <label for="q">Search name or description</label>
+  <input id="q" name="q" type="search" value="{{ q }}" maxlength="100" placeholder="Search leads">
+  <label for="borough">Borough</label>
+  <select id="borough" name="borough"><option value="">All boroughs</option>{% for item in boroughs %}<option value="{{ item }}" {% if borough == item %}selected{% endif %}>{{ item }}</option>{% endfor %}</select>
+  <label for="website_status">Website check</label>
+  <select id="website_status" name="website_status"><option value="">All leads</option><option value="reachable" {% if website_status == 'reachable' %}selected{% endif %}>Reachable website only</option></select>
+  <button type="submit">Apply</button>
+  {% if q or borough or website_status %}<a class="clear" href="{{ url_for('index') }}">Clear</a>{% endif %}
+</form>
+{% if website_status == 'reachable' %}<p class="hint filter-note">A reachable website does not confirm organization identity or nonprofit status.</p>{% endif %}
+<div class="table-card">
+  <div class="table-scroll"><table>
+    <thead><tr><th>Organization</th><th>Borough</th><th>Category</th><th>Website</th><th>Website check</th><th>Phone</th><th>Contact status</th></tr></thead>
+    <tbody>{% for lead in leads %}<tr>
+      <td><a class="lead-link" href="{{ url_for('detail', lead_id=lead.organization_id) }}">{{ lead.name }}</a></td>
+      <td>{{ lead.borough or '—' }}</td><td>{{ lead.category or '—' }}</td>
+      <td class="truncate" title="{{ lead.website or '' }}">{{ lead.website or '—' }}</td>
+      <td><span class="status">{{ lead.website_status|replace('_', ' ')|title if lead.website_status else 'Not checked' }}</span></td>
+      <td>{{ lead.phone or '—' }}</td>
+      <td><span class="status">{{ 'Source-reported' if lead.contact_verification_status == 'source_reported' else 'No contact' }}</span></td>
+    </tr>{% else %}<tr><td colspan="7" class="empty">No leads match these filters.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+<nav class="pagination" aria-label="Lead pages">
+  <span>Page {{ page }} of {{ pages }}</span>
+  <div>{% if page > 1 %}<a href="{{ url_for('index', page=page-1, q=q, borough=borough, website_status=website_status) }}">← Previous</a>{% endif %}{% if page < pages %}<a href="{{ url_for('index', page=page+1, q=q, borough=borough, website_status=website_status) }}">Next →</a>{% endif %}</div>
+</nav>
+{% endblock %}

@@ -1,0 +1,55 @@
+# Local lead data, exports, and operational output
+/data/
+/downloads/
+/exports/
+/logs/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+
+# Credentials and local environment settings
+.env
+.env.*
+!.env.example
+/secrets/
+/credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Python environments, bytecode, and test caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.hypothesis/
+.tox/
+.nox/
+.ipynb_checkpoints/
+
+# Coverage and package builds
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Local editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

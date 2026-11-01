@@ -1,0 +1,26 @@
+[project]
+name = "nonprofit-ai-leadgen"
+version = "0.1.0"
+description = "Local-first NYC nonprofit dataset ingestion"
+requires-python = ">=3.12"
+dependencies = [
+    "flask>=3.1,<4",
+    "pandas>=2.2,<3",
+    "requests>=2.32,<3",
+]
+
+[project.scripts]
+nonprofit-leadgen = "nonprofit_leadgen.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[build-system]
+requires = ["hatchling>=1.25,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nonprofit_leadgen"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
