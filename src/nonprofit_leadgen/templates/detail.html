@@ -14,7 +14,31 @@
     <section class="panel"><h2>Contact &amp; location</h2><dl class="facts"><dt>Website</dt><dd class="break-word">{{ lead.website or 'Not listed' }}</dd><dt>Email</dt><dd>{{ lead.email or 'Not listed' }}</dd><dt>Phone</dt><dd>{{ lead.phone or 'Not listed' }}</dd><dt>Address</dt><dd>{{ lead.street_address or 'Not listed' }}{% if lead.city %}<br>{{ lead.city }}{% endif %}{% if lead.state %}, {{ lead.state }}{% endif %}{% if lead.zip_code %} {{ lead.zip_code }}{% endif %}</dd><dt>Verification</dt><dd>{{ 'Source-reported; not verified' if lead.contact_verification_status == 'source_reported' else 'No contact listed' }}</dd></dl></section>
     <section class="panel"><h2>Website checks</h2><p class="hint">Reachability does not verify organization identity or nonprofit status.</p>{% for check in checks %}<div class="source-record"><strong>{{ check.status|replace('_', ' ')|title }}</strong><dl><dt>Checked</dt><dd>{{ check.checked_at[:16] }}</dd><dt>HTTP</dt><dd>{{ check.http_status or '—' }}</dd><dt>Reason</dt><dd>{{ check.error_type or '—' }}</dd><dt>Final URL</dt><dd>{{ check.final_url or '—' }}</dd></dl></div>{% else %}<p class="hint">Not checked yet.</p>{% endfor %}</section>
     <section class="panel"><h2>Website emails</h2><p class="hint">Public general inboxes; verify the site and address before outreach.</p>{% for item in website_emails %}<div class="source-record"><strong>{{ item.email }}</strong><dl><dt>Source page</dt><dd class="break-word">{{ item.source_url }}</dd><dt>Found</dt><dd>{{ item.discovered_at[:16] }}</dd><dt>Status</dt><dd>{{ item.verification_status|title }}</dd></dl></div>{% else %}<p class="hint">No general inbox found for this website.</p>{% endfor %}</section>
-    <section class="panel action-panel"><h2>Outreach</h2><p class="hint">Review the organization and contact details before drafting outreach.</p><button type="button" disabled>Generate email · coming later</button></section>
+    <section class="panel action-panel" id="outreach"><h2>Outreach draft</h2><p class="hint">Generated locally for review. No email is sent. Verify every claim and contact before use.</p>
+      {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+      {% if model_error %}<p class="form-error" role="alert">{{ model_error }}</p>{% endif %}
+      <form action="{{ url_for('create_draft', lead_id=lead.organization_id) }}" method="post" id="generate-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="objective">Outreach objective</label><select name="objective" id="objective" required>{% for key, item in objectives.items() %}<option value="{{ key }}"{% if (form.objective or (draft.objective if draft else 'pro_bono_ai')) == key %} selected{% endif %}>{{ item[0] }}</option>{% endfor %}</select>
+        <label for="model">Ollama model</label><select name="model" id="model" required{% if not models %} disabled{% endif %}>{% for name in models %}<option value="{{ name }}"{% if (form.model or (draft.model if draft and draft.model in models else default_model)) == name %} selected{% endif %}>{{ name }}</option>{% endfor %}</select>
+        <label for="tone">Tone</label><select name="tone" id="tone" required>{% for key, label in tones.items() %}<option value="{{ key }}"{% if (form.tone or (draft.tone if draft else 'professional_warm')) == key %} selected{% endif %}>{{ label|capitalize }}</option>{% endfor %}</select>
+        <label for="length">Length</label><select name="length" id="length" required>{% for key in lengths %}<option value="{{ key }}"{% if (form.length or (draft.length if draft else 'short')) == key %} selected{% endif %}>{{ key|capitalize }}</option>{% endfor %}</select>
+        <label for="instructions">Optional instructions</label><textarea name="instructions" id="instructions" maxlength="1000" rows="3" placeholder="Add a point to emphasize, without unsupported claims">{{ form.instructions or '' }}</textarea>
+        <button type="submit" id="generate-button"{% if not models %} disabled{% endif %}>{{ 'Regenerate as new draft' if draft else 'Generate draft' }}</button><p class="hint" id="loading-status" role="status" hidden>Generating locally; this may take a minute…</p>
+      </form>
+      {% if draft %}<div class="draft-editor"><p class="hint">Draft {{ draft.draft_id }} · {{ draft.status|capitalize }} · {{ draft.model }} · {{ draft.created_at[:16] }}</p>
+        <form action="{{ url_for('save_draft_edit', lead_id=lead.organization_id, draft_id=draft.draft_id) }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label for="draft-subject">Subject</label><input id="draft-subject" name="subject" maxlength="200" required value="{{ draft.edited_subject if draft.edited_subject is not none else draft.generated_subject }}">
+          <label for="draft-body">Email body</label><textarea id="draft-body" name="body" maxlength="4000" rows="12" required>{{ draft.edited_body if draft.edited_body is not none else draft.generated_body }}</textarea>
+          <button type="submit">Save edits</button><button type="button" class="secondary-button" id="copy-draft">Copy subject and body</button><p class="hint" id="copy-status" role="status"></p>
+        </form>
+        <p class="hint"><strong>Personalization basis:</strong> {{ draft.personalization_basis }}</p>
+        {% if warnings %}<p class="hint"><strong>Model warnings:</strong> {{ warnings|join('; ') }}</p>{% endif %}
+      </div>{% endif %}
+      {% if drafts %}<div class="draft-history"><h3>Saved drafts</h3>{% for item in drafts %}<p><a href="{{ url_for('detail', lead_id=lead.organization_id, draft=item.draft_id) }}#outreach">{{ item.created_at[:16] }} · {{ objectives[item.objective][0] }} · {{ item.status }}</a></p>{% endfor %}</div>{% endif %}
+    </section>
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script defer src="{{ url_for('static', filename='outreach.js') }}"></script>{% endblock %}

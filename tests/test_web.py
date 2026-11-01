@@ -5,7 +5,8 @@ from nonprofit_leadgen.web import _connect_read_only, create_app
 
 
 @pytest.fixture
-def app(tmp_path):
+def app(tmp_path, monkeypatch):
+    monkeypatch.setattr("nonprofit_leadgen.web.list_installed_models", lambda: ["qwen2.5:7b"])
     path = tmp_path / "test.db"
     db = connect(path)
     for n in range(55):
@@ -48,19 +49,19 @@ def test_list_pagination_search_and_borough(app):
     assert client.get("/?q=%25").data.count(b'class="lead-link"') == 0
 
 
-def test_detail_escaped_read_only_and_missing(app, tmp_path):
+def test_detail_escaped_and_missing(app, tmp_path):
     client = app.test_client()
     response = client.get("/leads/lead-0")
     assert response.status_code == 200
     assert b"&lt;img src=x onerror=alert(1)&gt;" in response.data
     assert b"<script>" not in response.data
-    assert b"Generate email" in response.data and b"disabled" in response.data
+    assert b"Generate draft" in response.data and b"coming later" not in response.data
     assert b"source-reported" in response.data.lower()
     assert client.get("/leads/missing").status_code == 404
     assert client.get("/leads/' OR 1=1 --").status_code == 404
     assert client.post("/leads/lead-0").status_code == 405
     assert response.headers["Cache-Control"] == "no-store"
-    assert "script-src 'none'" in response.headers["Content-Security-Policy"]
+    assert "script-src 'self'" in response.headers["Content-Security-Policy"]
     assert client.get("/", headers={"Host": "evil.example"}).status_code == 400
 
 

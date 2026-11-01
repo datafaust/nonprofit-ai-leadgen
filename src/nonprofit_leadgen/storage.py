@@ -1,4 +1,5 @@
 """SQLite persistence with source provenance and conservative identity links."""
+import json
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -49,11 +50,22 @@ def connect(path="data/nonprofits.db"):
       verification_status TEXT NOT NULL DEFAULT 'unverified',
       PRIMARY KEY (organization_id, claimed_url, email)
     );
+    CREATE TABLE IF NOT EXISTS outreach_drafts (
+      draft_id INTEGER PRIMARY KEY,
+      organization_id TEXT NOT NULL REFERENCES organizations(organization_id),
+      objective TEXT NOT NULL, tone TEXT NOT NULL, length TEXT NOT NULL,
+      model TEXT NOT NULL, created_at TEXT NOT NULL,
+      generated_subject TEXT NOT NULL, generated_body TEXT NOT NULL,
+      edited_subject TEXT, edited_body TEXT,
+      personalization_basis TEXT NOT NULL, warnings_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'generated' CHECK (status IN ('generated', 'edited'))
+    );
     CREATE INDEX IF NOT EXISTS idx_source_org ON source_records(organization_id);
     CREATE INDEX IF NOT EXISTS idx_org_borough ON organizations(borough);
     CREATE INDEX IF NOT EXISTS idx_website_checks ON website_checks(organization_id, claimed_url, check_id DESC);
     CREATE INDEX IF NOT EXISTS idx_email_scans ON website_email_scans(organization_id, claimed_url, scan_id DESC);
     CREATE INDEX IF NOT EXISTS idx_website_emails_org ON website_emails(organization_id, claimed_url);
+    CREATE INDEX IF NOT EXISTS idx_outreach_drafts_org ON outreach_drafts(organization_id, draft_id DESC);
     """)
     # Add the source claim to databases created before website checking existed.
     columns = {row[1] for row in db.execute("PRAGMA table_info(source_records)")}
@@ -61,6 +73,25 @@ def connect(path="data/nonprofits.db"):
         db.execute("ALTER TABLE source_records ADD COLUMN claimed_website TEXT")
     db.commit()
     return db
+
+
+def save_outreach_draft(db, organization_id, objective, tone, length, model, result):
+    with db:
+        cursor = db.execute("""INSERT INTO outreach_drafts
+            (organization_id, objective, tone, length, model, created_at,
+             generated_subject, generated_body, personalization_basis, warnings_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (organization_id, objective, tone, length, model, datetime.now(timezone.utc).isoformat(),
+             result["subject"], result["body"], result["personalization_basis"],
+             json.dumps(result["warnings"])))
+    return cursor.lastrowid
+
+
+def edit_outreach_draft(db, draft_id, organization_id, subject, body):
+    with db:
+        cursor = db.execute("""UPDATE outreach_drafts SET edited_subject=?, edited_body=?, status='edited'
+            WHERE draft_id=? AND organization_id=?""", (subject, body, draft_id, organization_id))
+    return cursor.rowcount == 1
 
 def save(db, records):
     count = 0
