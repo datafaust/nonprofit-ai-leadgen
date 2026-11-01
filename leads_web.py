@@ -6,7 +6,7 @@ from nonprofit_leadgen.web import create_app
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Read-only local nonprofit lead viewer")
+    parser = argparse.ArgumentParser(description="Local nonprofit lead viewer and outreach draft editor")
     parser.add_argument("--db", default="data/nonprofits.db", help="Path to the local SQLite database")
     parser.add_argument("--port", type=int, default=5055, help="Local port (default: 5055)")
     args = parser.parse_args()
